@@ -1,2 +1,1070 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+import { useState, useEffect, useCallback, useRef } from "react";
+
+// ─── TRANSLATIONS ─────────────────────────────────────────────────────────────
+const TRANSLATIONS = {
+  en: {
+    appTitle: "Plux Portfolio Builder",
+    appSubtitle: "Craft your professional story",
+    steps: ["Basics", "Social", "Experience", "Education", "Skills", "Languages", "Projects", "Template", "Review"],
+    saveDraft: "Save", loadDraft: "Load", clearAll: "Clear",
+    next: "Next →", back: "← Back",
+    remove: "Remove", exportPDF: "Export PDF", exportJSON: "Download JSON",
+    importJSON: "Import JSON", draftSaved: "Draft saved!", draftLoaded: "Draft loaded!",
+    cleared: "Cleared!", imported: "Imported!", invalidJSON: "Invalid file.",
+    privacyNote: "Your data stays on this device unless you export it.",
+    readyCheck: "Please add your Name & Email to continue.",
+    readyOK: "Your portfolio is export-ready! 🎉",
+    fullName: "Full Name *", email: "Email *", phone: "Phone", title: "Professional Title",
+    location: "Location", summary: "Summary",
+    photo: "Profile Photo", photoHint: "Upload JPG, PNG, or WebP (max 2MB). Stored locally.",
+    uploadPhoto: "Upload Photo", removePhoto: "Remove", changePhoto: "Change Photo",
+    socialLinks: "Social & Web Links", addSocialLink: "+ Add Link",
+    linkedin: "LinkedIn URL", github: "GitHub URL", portfolio: "Portfolio / Website",
+    twitter: "Twitter / X", otherLink: "Other Link", linkLabel: "Label", linkUrl: "URL (https://…)",
+    addLink: "+ Add Link",
+    role: "Role / Position", company: "Company", startDate: "Start (YYYY-MM)",
+    endDate: "End (YYYY-MM or Present)", details: "Details / Achievements",
+    addExperience: "+ Add Experience",
+    degree: "Degree / Certificate", school: "School / University", year: "Year(s)",
+    addEducation: "+ Add Education",
+    skillName: "Skill", level: "Level", addSkill: "+ Add Skill",
+    langName: "Language", addLanguage: "+ Add Language",
+    projectName: "Project Name", description: "Description", link: "Link",
+    addProject: "+ Add Project",
+    levels: ["Beginner", "Intermediate", "Advanced", "Expert"],
+    langLevels: ["Beginner", "Intermediate", "Advanced", "Native"],
+    summaryHint: "Keep 2–4 lines focusing on outcomes and skills.",
+    detailsHint: "Use action verbs + impact (shipped, reduced, improved…).",
+    projectHint: "One-liner + link (GitHub/Live).",
+    confirmClear: "Clear all data?", confirmImport: "Replace current draft?",
+    printNote: "Best results in Chrome/Edge.",
+    experience: "Experience", education: "Education", skills: "Skills",
+    languages: "Languages", projects: "Projects", contact: "Contact",
+    chooseTemplate: "Choose a Template", templateHint: "Pick the layout for your exported resume.",
+    templates: {
+      classic: { name: "Classic", desc: "Clean two-column, timeless" },
+      modern: { name: "Modern", desc: "Bold header, sidebar accents" },
+      minimal: { name: "Minimal", desc: "Ultra-clean, typography-first" },
+      executive: { name: "Executive", desc: "Dark header, premium feel" },
+      creative: { name: "Creative", desc: "Color accent bar, dynamic" },
+    },
+  },
+  fr: {
+    appTitle: "Plux Portfolio Builder",
+    appSubtitle: "Construisez votre histoire professionnelle",
+    steps: ["Profil", "Réseaux", "Expérience", "Éducation", "Compétences", "Langues", "Projets", "Modèle", "Aperçu"],
+    saveDraft: "Sauv.", loadDraft: "Charger", clearAll: "Effacer",
+    next: "Suivant →", back: "← Retour",
+    remove: "Supprimer", exportPDF: "Exporter PDF", exportJSON: "Télécharger JSON",
+    importJSON: "Importer JSON", draftSaved: "Sauvegardé!", draftLoaded: "Chargé!",
+    cleared: "Effacé!", imported: "Importé!", invalidJSON: "Fichier invalide.",
+    privacyNote: "Vos données restent sur cet appareil.", readyCheck: "Ajoutez Nom et Email.",
+    readyOK: "Portfolio prêt ! 🎉",
+    fullName: "Nom complet *", email: "Email *", phone: "Téléphone", title: "Titre professionnel",
+    location: "Lieu", summary: "Résumé",
+    photo: "Photo de profil", photoHint: "JPG, PNG ou WebP (max 2Mo).",
+    uploadPhoto: "Importer", removePhoto: "Supprimer", changePhoto: "Changer",
+    socialLinks: "Liens & Réseaux", addSocialLink: "+ Ajouter",
+    linkedin: "LinkedIn", github: "GitHub", portfolio: "Portfolio",
+    twitter: "Twitter / X", otherLink: "Autre lien", linkLabel: "Étiquette", linkUrl: "URL (https://…)",
+    addLink: "+ Ajouter",
+    role: "Poste", company: "Entreprise", startDate: "Début", endDate: "Fin", details: "Réalisations",
+    addExperience: "+ Ajouter",
+    degree: "Diplôme", school: "École", year: "Année",
+    addEducation: "+ Ajouter",
+    skillName: "Compétence", level: "Niveau", addSkill: "+ Ajouter",
+    langName: "Langue", addLanguage: "+ Ajouter",
+    projectName: "Projet", description: "Description", link: "Lien",
+    addProject: "+ Ajouter",
+    levels: ["Débutant", "Intermédiaire", "Avancé", "Expert"],
+    langLevels: ["Débutant", "Intermédiaire", "Avancé", "Natif"],
+    summaryHint: "2–4 lignes axées sur vos résultats.",
+    detailsHint: "Verbes d'action + impact.",
+    projectHint: "Résumé court + lien.",
+    confirmClear: "Effacer tout ?", confirmImport: "Remplacer le brouillon ?",
+    printNote: "Meilleurs résultats avec Chrome/Edge.",
+    experience: "Expérience", education: "Éducation", skills: "Compétences",
+    languages: "Langues", projects: "Projets", contact: "Contact",
+    chooseTemplate: "Choisir un modèle", templateHint: "Sélectionnez la mise en page.",
+    templates: {
+      classic: { name: "Classique", desc: "Deux colonnes, intemporel" },
+      modern: { name: "Moderne", desc: "En-tête audacieux" },
+      minimal: { name: "Minimaliste", desc: "Typographie épurée" },
+      executive: { name: "Exécutif", desc: "En-tête sombre, premium" },
+      creative: { name: "Créatif", desc: "Barre colorée, dynamique" },
+    },
+  },
+  ar: {
+    appTitle: "Plux Portfolio Builder",
+    appSubtitle: "اصنع قصتك المهنية",
+    steps: ["الأساسيات", "الروابط", "الخبرة", "التعليم", "المهارات", "اللغات", "المشاريع", "القالب", "المراجعة"],
+    saveDraft: "حفظ", loadDraft: "تحميل", clearAll: "مسح",
+    next: "التالي ←", back: "→ السابق",
+    remove: "حذف", exportPDF: "تصدير PDF", exportJSON: "تنزيل JSON",
+    importJSON: "استيراد", draftSaved: "تم الحفظ!", draftLoaded: "تم التحميل!",
+    cleared: "تم المسح!", imported: "تم الاستيراد!", invalidJSON: "ملف غير صالح.",
+    privacyNote: "بياناتك تبقى على جهازك.", readyCheck: "أضف الاسم والبريد الإلكتروني.",
+    readyOK: "ملفك جاهز للتصدير! 🎉",
+    fullName: "الاسم الكامل *", email: "البريد الإلكتروني *", phone: "الهاتف", title: "المسمى الوظيفي",
+    location: "الموقع", summary: "الملخص",
+    photo: "صورة الملف الشخصي", photoHint: "JPG أو PNG (الحد الأقصى 2MB).",
+    uploadPhoto: "رفع صورة", removePhoto: "حذف", changePhoto: "تغيير",
+    socialLinks: "الروابط والشبكات", addSocialLink: "+ إضافة",
+    linkedin: "LinkedIn", github: "GitHub", portfolio: "الموقع الشخصي",
+    twitter: "Twitter / X", otherLink: "رابط آخر", linkLabel: "التسمية", linkUrl: "الرابط (https://…)",
+    addLink: "+ إضافة",
+    role: "المنصب", company: "الشركة", startDate: "البداية", endDate: "النهاية", details: "الإنجازات",
+    addExperience: "+ إضافة",
+    degree: "الشهادة", school: "المدرسة", year: "السنة",
+    addEducation: "+ إضافة",
+    skillName: "المهارة", level: "المستوى", addSkill: "+ إضافة",
+    langName: "اللغة", addLanguage: "+ إضافة",
+    projectName: "المشروع", description: "الوصف", link: "الرابط",
+    addProject: "+ إضافة",
+    levels: ["مبتدئ", "متوسط", "متقدم", "خبير"],
+    langLevels: ["مبتدئ", "متوسط", "متقدم", "أصلي"],
+    summaryHint: "2-4 أسطر تركز على النتائج.",
+    detailsHint: "أفعال + تأثير.",
+    projectHint: "وصف قصير + رابط.",
+    confirmClear: "مسح جميع البيانات؟", confirmImport: "استبدال المسودة؟",
+    printNote: "أفضل نتائج مع Chrome/Edge.",
+    experience: "الخبرة", education: "التعليم", skills: "المهارات",
+    languages: "اللغات", projects: "المشاريع", contact: "التواصل",
+    chooseTemplate: "اختر قالباً", templateHint: "اختر تخطيط السيرة الذاتية.",
+    templates: {
+      classic: { name: "كلاسيكي", desc: "عمودان، خالد" },
+      modern: { name: "عصري", desc: "رأس صفحة جريء" },
+      minimal: { name: "بسيط", desc: "طباعة نظيفة" },
+      executive: { name: "تنفيذي", desc: "رأس داكن، راقي" },
+      creative: { name: "إبداعي", desc: "شريط ملون، ديناميكي" },
+    },
+  },
+};
+
+const defaultProfile = () => ({
+  basics: { fullName: "", title: "", email: "", phone: "", location: "", summary: "", photo: "" },
+  social: { linkedin: "", github: "", portfolio: "", twitter: "", links: [] },
+  experience: [], education: [], skills: [], languages: [], projects: [],
+});
+
+const newExp = () => ({ id: Date.now() + Math.random(), role: "", company: "", start: "", end: "", details: "" });
+const newEdu = () => ({ id: Date.now() + Math.random(), degree: "", school: "", year: "" });
+const newSkill = () => ({ id: Date.now() + Math.random(), name: "", level: "Intermediate" });
+const newLang = () => ({ id: Date.now() + Math.random(), name: "", level: "Intermediate" });
+const newProject = () => ({ id: Date.now() + Math.random(), name: "", description: "", link: "" });
+const newLink = () => ({ id: Date.now() + Math.random(), label: "", url: "" });
+
+const THEME_VARS = {
+  light: {
+    "--bg": "#EEF4FF", "--panel": "#FFFFFF", "--panel2": "#E8F0FE",
+    "--text": "#0D1B3E", "--muted": "#5A6A8A", "--primary": "#1A56DB",
+    "--accent": "#0EA5E9", "--danger": "#DC2626", "--border": "#BDD0F8",
+    "--shadow": "0 2px 20px rgba(26,86,219,0.08)", "--step-active-bg": "#1A56DB",
+    "--step-active-text": "#FFF", "--step-done-bg": "#0EA5E9", "--input-bg": "#F5F8FF",
+  },
+  dark: {
+    "--bg": "#060D1F", "--panel": "#0F1A35", "--panel2": "#162040",
+    "--text": "#E8EFFF", "--muted": "#7A8DB0", "--primary": "#3B82F6",
+    "--accent": "#38BDF8", "--danger": "#F87171", "--border": "#1E3060",
+    "--shadow": "0 2px 28px rgba(0,0,40,0.5)", "--step-active-bg": "#3B82F6",
+    "--step-active-text": "#FFF", "--step-done-bg": "#38BDF8", "--input-bg": "#0A1428",
+  },
+  hc: {
+    "--bg": "#000", "--panel": "#0A0A0A", "--panel2": "#111",
+    "--text": "#FFF", "--muted": "#CCC", "--primary": "#60A5FA",
+    "--accent": "#7DD3FC", "--danger": "#F87171", "--border": "#FFF",
+    "--shadow": "0 0 0 2px #FFF", "--step-active-bg": "#60A5FA",
+    "--step-active-text": "#000", "--step-done-bg": "#7DD3FC", "--input-bg": "#0A0A0A",
+  },
+};
+
+const levelPct = {
+  Beginner:25, Intermediate:55, Advanced:80, Expert:100,
+  Débutant:25, Intermédiaire:55, Avancé:80,
+  مبتدئ:25, متوسط:55, متقدم:80, خبير:100,
+  Native:100, Natif:100, أصلي:100,
+};
+
+const levelClass = (l) => {
+  const m = {Beginner:"level-1",Débutant:"level-1",مبتدئ:"level-1",Intermediate:"level-2",Intermédiaire:"level-2",متوسط:"level-2",Advanced:"level-3",Avancé:"level-3",متقدم:"level-3",Expert:"level-4",خبير:"level-4",Native:"level-4",Natif:"level-4",أصلي:"level-4"};
+  return m[l] || "level-2";
+};
+
+const css = `
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Outfit:wght@300;400;500;600&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;transition:background .3s,color .3s;}
+  #plux-root{min-height:100vh;}
+  .app-wrapper{max-width:1020px;margin:0 auto;padding:0 18px 80px;}
+
+  .app-header{display:flex;align-items:center;justify-content:space-between;padding:22px 0 16px;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--border);margin-bottom:26px;}
+  .app-header-brand{display:flex;align-items:center;gap:14px;}
+  .brand-icon{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#1A56DB,#0EA5E9);display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;flex-shrink:0;box-shadow:0 4px 14px rgba(26,86,219,0.35);}
+  .app-header-title{font-family:'Syne',sans-serif;font-size:clamp(20px,3.5vw,28px);font-weight:800;color:var(--primary);letter-spacing:-0.5px;}
+  .app-header-subtitle{font-size:12px;color:var(--muted);font-weight:300;}
+  .header-controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+
+  .btn{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:9px;cursor:pointer;font-family:'Outfit',sans-serif;font-weight:500;font-size:13px;padding:8px 15px;transition:all .18s;white-space:nowrap;}
+  .btn:focus-visible{outline:2px solid var(--primary);outline-offset:2px;}
+  .btn-primary{background:var(--primary);color:#FFF;box-shadow:0 3px 12px rgba(26,86,219,0.3);}
+  .btn-primary:hover{filter:brightness(1.1);transform:translateY(-1px);box-shadow:0 6px 20px rgba(26,86,219,0.4);}
+  .btn-secondary{background:var(--panel2);color:var(--text);border:1px solid var(--border);}
+  .btn-secondary:hover{border-color:var(--primary);color:var(--primary);}
+  .btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+  .btn-ghost:hover{color:var(--text);border-color:var(--muted);}
+  .btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger);font-size:12px;padding:5px 10px;}
+  .btn-danger:hover{background:var(--danger);color:#FFF;}
+  .btn-accent{background:var(--accent);color:#0D1B3E;font-weight:600;}
+  .btn-accent:hover{filter:brightness(1.08);transform:translateY(-1px);}
+  .btn-sm{padding:6px 11px;font-size:12px;}
+
+  .stepper-wrap{overflow-x:auto;padding-bottom:4px;margin-bottom:26px;scrollbar-width:thin;}
+  .stepper{display:flex;gap:5px;min-width:max-content;padding:2px 0;}
+  .step-btn{border:none;border-radius:20px;padding:7px 15px;font-size:12.5px;font-weight:500;cursor:pointer;transition:all .2s;font-family:'Outfit',sans-serif;white-space:nowrap;}
+  .step-btn:focus-visible{outline:2px solid var(--primary);}
+  .step-btn.active{background:var(--primary);color:#FFF;box-shadow:0 3px 12px rgba(26,86,219,0.35);}
+  .step-btn.done{background:var(--step-done-bg);color:#0D1B3E;font-weight:600;}
+  .step-btn.inactive{background:var(--panel2);color:var(--muted);border:1px solid var(--border);}
+  .step-btn.inactive:hover{color:var(--text);border-color:var(--primary);}
+
+  .section-card{background:var(--panel);border-radius:14px;box-shadow:var(--shadow);padding:26px 28px;margin-bottom:18px;border:1px solid var(--border);animation:fadeSlide .22s ease-out;}
+  @keyframes fadeSlide{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  .section-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;color:var(--primary);margin-bottom:20px;display:flex;align-items:center;gap:10px;}
+  .section-title::after{content:'';flex:1;height:1px;background:var(--border);}
+
+  .form-grid{display:grid;gap:14px;}
+  .form-grid-2{grid-template-columns:1fr 1fr;}
+  .form-grid-3{grid-template-columns:1fr 1fr 1fr;}
+  @media(max-width:620px){.form-grid-2,.form-grid-3{grid-template-columns:1fr;}}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;}
+  .field input,.field textarea,.field select{background:var(--input-bg);border:1.5px solid var(--border);border-radius:9px;padding:10px 13px;font-size:14px;color:var(--text);font-family:'Outfit',sans-serif;transition:border-color .15s,box-shadow .15s;width:100%;}
+  .field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,130,246,0.15);}
+  .field textarea{resize:vertical;min-height:90px;}
+  .field select option{background:var(--panel);color:var(--text);}
+  .field-hint{font-size:11px;color:var(--muted);font-style:italic;}
+
+  .photo-upload-zone{display:flex;align-items:center;gap:20px;flex-wrap:wrap;padding:18px;border:2px dashed var(--border);border-radius:12px;cursor:pointer;transition:border-color .2s;background:var(--input-bg);}
+  .photo-upload-zone:hover{border-color:var(--primary);}
+  .photo-preview{width:88px;height:88px;border-radius:50%;object-fit:cover;border:3px solid var(--primary);box-shadow:0 4px 16px rgba(26,86,219,0.2);flex-shrink:0;}
+  .photo-placeholder{width:88px;height:88px;border-radius:50%;background:var(--panel2);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;color:var(--muted);}
+  .photo-info{flex:1;}
+  .photo-label{font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;}
+  .photo-sub{font-size:11px;color:var(--muted);}
+  .photo-actions{display:flex;gap:8px;margin-top:10px;}
+
+  .social-grid{display:grid;gap:12px;grid-template-columns:1fr 1fr;}
+  @media(max-width:620px){.social-grid{grid-template-columns:1fr;}}
+  .social-field{position:relative;}
+  .social-field .social-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px;pointer-events:none;z-index:1;}
+  .social-field input{padding-left:38px !important;}
+
+  .list-item{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:18px;margin-bottom:11px;animation:listIn .15s ease-out;}
+  @keyframes listIn{from{opacity:0;transform:scale(0.98);}to{opacity:1;transform:scale(1);}}
+  .list-item-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px;}
+  .list-item-label{font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.5px;}
+
+  .step-nav{display:flex;justify-content:space-between;align-items:center;margin-top:22px;padding-top:18px;border-top:1px solid var(--border);}
+
+  .selector-group{display:flex;gap:4px;}
+  .sel-btn{border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:7px;padding:5px 10px;font-size:12px;cursor:pointer;font-family:'Outfit',sans-serif;transition:all .15s;}
+  .sel-btn.active{background:var(--primary);color:#FFF;border-color:var(--primary);}
+  .sel-btn:hover:not(.active){color:var(--text);border-color:var(--primary);}
+
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:11px;padding:11px 18px;font-size:13.5px;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,0.2);z-index:999;animation:toastIn .28s ease-out;display:flex;align-items:center;gap:8px;}
+  @keyframes toastIn{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
+  .toast-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+
+  .status-banner{border-radius:9px;padding:11px 16px;font-size:13px;font-weight:500;margin-bottom:18px;display:flex;align-items:center;gap:8px;}
+  .status-ok{background:#D1FAE5;color:#065F46;border:1px solid #6EE7B7;}
+  .status-warn{background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;}
+  .privacy-note{font-size:11px;color:var(--muted);text-align:center;margin-top:10px;padding:8px;border-top:1px solid var(--border);}
+
+  .level-badge{display:inline-block;padding:2px 9px;border-radius:5px;font-size:11px;font-weight:600;}
+  .level-1{background:#DBEAFE;color:#1E40AF;}
+  .level-2{background:#E0F2FE;color:#0369A1;}
+  .level-3{background:#D1FAE5;color:#065F46;}
+  .level-4{background:#EDE9FE;color:#5B21B6;}
+
+  /* ── TEMPLATE PICKER ── */
+  .template-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:14px;}
+  .template-card{border:2px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .2s;background:var(--panel);}
+  .template-card:hover{border-color:var(--primary);transform:translateY(-2px);box-shadow:0 8px 24px rgba(26,86,219,0.2);}
+  .template-card.selected{border-color:var(--primary);box-shadow:0 0 0 3px rgba(59,130,246,0.25);}
+  .template-thumb{height:120px;position:relative;overflow:hidden;display:flex;flex-direction:column;}
+  .tpl-bar{height:36px;flex-shrink:0;display:flex;align-items:center;padding:0 10px;gap:6px;}
+  .tpl-avatar{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.3);}
+  .tpl-name-line{height:5px;border-radius:3px;background:rgba(255,255,255,0.7);width:55%;}
+  .tpl-sub-line{height:3px;border-radius:2px;background:rgba(255,255,255,0.4);width:35%;}
+  .tpl-body{flex:1;padding:6px 8px;display:flex;gap:5px;}
+  .tpl-col{flex:1;display:flex;flex-direction:column;gap:4px;}
+  .tpl-line{height:3px;border-radius:2px;background:var(--border);}
+  .template-label{padding:10px 12px;}
+  .template-name{font-size:13px;font-weight:600;color:var(--text);}
+  .template-desc{font-size:11px;color:var(--muted);}
+  .template-selected-badge{position:absolute;top:8px;right:8px;background:var(--primary);color:#FFF;border-radius:12px;font-size:10px;font-weight:700;padding:3px 8px;}
+
+  /* ── REVIEW ── */
+  .review-toolbar{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
+  .print-note{font-size:11px;color:var(--muted);margin-left:auto;}
+
+  /* ── RESUME SHARED ── */
+  .resume-preview{border-radius:12px;overflow:hidden;font-family:'Outfit',sans-serif;box-shadow:0 6px 40px rgba(0,0,0,0.18);color:#1A1A2E;background:#FFF;}
+  .r-section{margin-bottom:22px;}
+  .r-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1.8px;color:#1A56DB;margin-bottom:12px;padding-bottom:5px;border-bottom:2px solid #1A56DB;}
+  .r-exp-item{margin-bottom:14px;}
+  .r-exp-role{font-weight:600;font-size:14px;color:#0D1B3E;}
+  .r-exp-co{font-size:12px;color:#5A6A8A;margin-bottom:3px;}
+  .r-exp-detail{font-size:12.5px;color:#2A3A5E;line-height:1.55;white-space:pre-wrap;}
+  .r-summary{font-size:13px;color:#2A3A5E;line-height:1.65;}
+  .r-edu-item{margin-bottom:10px;font-size:12.5px;}
+  .r-edu-degree{font-weight:600;color:#0D1B3E;}
+  .r-edu-school{color:#5A6A8A;}
+  .r-skill-row{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:3px;}
+  .r-skill-bar{height:3px;background:#DBEAFE;border-radius:2px;margin-bottom:7px;}
+  .r-skill-fill{height:100%;background:#1A56DB;border-radius:2px;}
+  .r-lang-row{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:6px;color:#0D1B3E;}
+  .r-project-item{margin-bottom:12px;}
+  .r-project-name{font-weight:600;font-size:13px;color:#0D1B3E;}
+  .r-project-desc{font-size:12px;color:#2A3A5E;margin:2px 0;}
+  .r-project-link a{font-size:11px;color:#1A56DB;word-break:break-all;}
+  .r-social-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:6px;word-break:break-all;}
+  .r-social-row a{color:#1A56DB;text-decoration:none;}
+
+  /* ── TEMPLATE: CLASSIC ── */
+  .tpl-classic .r-header{background:linear-gradient(135deg,#1A56DB 0%,#0EA5E9 100%);padding:30px 34px;display:flex;gap:20px;align-items:center;}
+  .tpl-classic .r-photo,.tpl-modern .r-photo,.tpl-minimal .r-photo,.tpl-executive .r-photo,.tpl-creative .r-photo{object-fit:cover;flex-shrink:0;}
+  .tpl-classic .r-photo{width:78px;height:78px;border-radius:50%;border:3px solid rgba(255,255,255,0.5);}
+  .tpl-classic .r-photo-ph{width:78px;height:78px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;}
+  .tpl-classic .r-name{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#FFF;}
+  .tpl-classic .r-title-txt{font-size:13px;color:rgba(255,255,255,0.8);margin:3px 0 10px;}
+  .tpl-classic .r-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:rgba(255,255,255,0.7);}
+  .tpl-classic .r-body{display:grid;grid-template-columns:1fr 250px;}
+  .tpl-classic .r-main{padding:24px 28px;}
+  .tpl-classic .r-side{padding:24px 20px;background:#F0F6FF;border-left:1px solid #DBEAFE;}
+
+  /* ── TEMPLATE: MODERN ── */
+  .tpl-modern .r-header{background:#0D1B3E;padding:28px 34px;display:flex;gap:20px;align-items:center;}
+  .tpl-modern .r-photo{width:72px;height:72px;border-radius:10px;border:3px solid #3B82F6;}
+  .tpl-modern .r-photo-ph{width:72px;height:72px;border-radius:10px;background:#1E3060;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;}
+  .tpl-modern .r-name{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:#FFF;}
+  .tpl-modern .r-title-txt{font-size:12px;color:#3B82F6;margin:3px 0 10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;}
+  .tpl-modern .r-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:rgba(255,255,255,0.6);}
+  .tpl-modern .r-body{display:grid;grid-template-columns:1fr 245px;}
+  .tpl-modern .r-main{padding:22px 28px;}
+  .tpl-modern .r-side{padding:22px 20px;background:#F8FAFF;border-left:3px solid #3B82F6;}
+
+  /* ── TEMPLATE: MINIMAL ── */
+  .tpl-minimal .r-header{padding:34px 38px 22px;border-bottom:2px solid #1A56DB;display:flex;gap:18px;align-items:flex-start;background:#FFF;}
+  .tpl-minimal .r-photo{width:68px;height:68px;border-radius:50%;}
+  .tpl-minimal .r-photo-ph{width:68px;height:68px;border-radius:50%;background:#EEF4FF;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;}
+  .tpl-minimal .r-name{font-family:'Syne',sans-serif;font-size:30px;font-weight:700;color:#0D1B3E;}
+  .tpl-minimal .r-title-txt{font-size:13px;color:#1A56DB;margin:4px 0 10px;}
+  .tpl-minimal .r-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#5A6A8A;}
+  .tpl-minimal .r-body{display:grid;grid-template-columns:1fr 235px;}
+  .tpl-minimal .r-main{padding:24px 30px;}
+  .tpl-minimal .r-side{padding:24px 20px;border-left:1px solid #DBEAFE;}
+
+  /* ── TEMPLATE: EXECUTIVE ── */
+  .tpl-executive .r-accent-strip{height:5px;background:linear-gradient(90deg,#1A56DB,#0EA5E9,#7C3AED);}
+  .tpl-executive .r-header{background:#0A0F1E;padding:30px 36px;display:flex;gap:22px;align-items:center;}
+  .tpl-executive .r-photo{width:78px;height:78px;border-radius:50%;border:3px solid #1A56DB;}
+  .tpl-executive .r-photo-ph{width:78px;height:78px;border-radius:50%;background:#0F1A35;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;}
+  .tpl-executive .r-name{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#FFF;}
+  .tpl-executive .r-title-txt{font-size:12px;color:#7DD3FC;margin:4px 0 10px;letter-spacing:0.5px;}
+  .tpl-executive .r-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:rgba(255,255,255,0.55);}
+  .tpl-executive .r-body{display:grid;grid-template-columns:1fr 250px;}
+  .tpl-executive .r-main{padding:24px 28px;}
+  .tpl-executive .r-side{padding:24px 20px;background:#F5F8FF;border-left:1px solid #DBEAFE;}
+
+  /* ── TEMPLATE: CREATIVE ── */
+  .tpl-creative .r-accent-strip{height:7px;background:linear-gradient(90deg,#1A56DB,#0EA5E9,#06B6D4);}
+  .tpl-creative .r-header{padding:26px 34px;display:flex;gap:20px;align-items:center;background:#FFF;border-bottom:1px solid #EEF4FF;}
+  .tpl-creative .r-photo{width:80px;height:80px;border-radius:14px;border:3px solid #1A56DB;}
+  .tpl-creative .r-photo-ph{width:80px;height:80px;border-radius:14px;background:#EEF4FF;display:flex;align-items:center;justify-content:center;font-size:30px;flex-shrink:0;}
+  .tpl-creative .r-name{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;color:#0D1B3E;}
+  .tpl-creative .r-title-txt{font-size:13px;color:#1A56DB;margin:4px 0 10px;font-weight:600;}
+  .tpl-creative .r-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:#5A6A8A;}
+  .tpl-creative .r-body{display:grid;grid-template-columns:1fr 248px;}
+  .tpl-creative .r-main{padding:22px 28px;}
+  .tpl-creative .r-side{padding:22px 20px;background:#EEF4FF;border-left:3px solid #1A56DB;}
+
+  @media(max-width:640px){
+    .tpl-classic .r-body,.tpl-modern .r-body,.tpl-minimal .r-body,.tpl-executive .r-body,.tpl-creative .r-body{grid-template-columns:1fr;}
+    .tpl-classic .r-side,.tpl-modern .r-side,.tpl-minimal .r-side,.tpl-executive .r-side,.tpl-creative .r-side{border-left:none;border-top:1px solid #DBEAFE;}
+  }
+
+  @media print{
+    body{background:#FFF !important;}
+    .app-header,.stepper-wrap,.step-nav,.section-card:not(.review-card),.review-toolbar,.header-controls,.privacy-note,.status-banner,.toast,.print-note{display:none !important;}
+    .review-card{box-shadow:none !important;border:none !important;background:transparent !important;}
+    .resume-preview{box-shadow:none !important;border-radius:0 !important;}
+    .tpl-classic .r-header,.tpl-modern .r-header,.tpl-executive .r-header{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .r-skill-fill,.tpl-executive .r-accent-strip,.tpl-creative .r-accent-strip{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    .app-wrapper{padding:0 !important;max-width:100% !important;}
+    @page{margin:1.5cm;}
+  }
+
+  [dir="rtl"] .section-title::after{margin-left:0;margin-right:auto;}
+  [dir="rtl"] .social-field .social-icon{left:auto;right:12px;}
+  [dir="rtl"] .social-field input{padding-left:13px !important;padding-right:38px !important;}
+
+  @media(max-width:600px){
+    .section-card{padding:16px 14px;}
+    .app-header{gap:8px;}
+    .btn{padding:7px 10px;font-size:12px;}
+  }
+`;
+
+// ─── SMALL COMPONENTS ─────────────────────────────────────────────────────────
+function Toast({ msg, onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2600); return () => clearTimeout(t); }, []);
+  return <div className="toast" role="status"><div className="toast-dot" />{msg}</div>;
+}
+function Field({ label, hint, children, col }) {
+  return (
+    <div className="field" style={col ? { gridColumn: col } : {}}>
+      {label && <label>{label}</label>}
+      {children}
+      {hint && <span className="field-hint">{hint}</span>}
+    </div>
+  );
+}
+
+// ─── STEP 0: BASICS ───────────────────────────────────────────────────────────
+function StepBasics({ profile, update, t }) {
+  const b = profile.basics;
+  const upd = (k, v) => update("basics", { ...b, [k]: v });
+  const photoRef = useRef();
+
+  const handlePhoto = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { alert("Max 2MB"); return; }
+    const reader = new FileReader();
+    reader.onload = ev => upd("photo", ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  return (
+    <div className="section-card">
+      <h2 className="section-title">👤 {t.steps[0]}</h2>
+      <div style={{ marginBottom: 22 }}>
+        <div className="photo-upload-zone" onClick={() => !b.photo && photoRef.current?.click()}>
+          {b.photo
+            ? <img src={b.photo} alt="Profile" className="photo-preview" />
+            : <div className="photo-placeholder">📷</div>
+          }
+          <div className="photo-info">
+            <div className="photo-label">{t.photo}</div>
+            <div className="photo-sub">{t.photoHint}</div>
+            <div className="photo-actions">
+              <button className="btn btn-secondary btn-sm" onClick={e => { e.stopPropagation(); photoRef.current?.click(); }}>
+                {b.photo ? t.changePhoto : t.uploadPhoto}
+              </button>
+              {b.photo && (
+                <button className="btn btn-danger btn-sm" onClick={e => { e.stopPropagation(); upd("photo", ""); }}>
+                  {t.removePhoto}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        <input ref={photoRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display: "none" }} onChange={handlePhoto} />
+      </div>
+      <div className="form-grid form-grid-2">
+        <Field label={t.fullName}><input value={b.fullName} onChange={e => upd("fullName", e.target.value)} /></Field>
+        <Field label={t.title}><input value={b.title} onChange={e => upd("title", e.target.value)} /></Field>
+        <Field label={t.email}><input type="email" value={b.email} onChange={e => upd("email", e.target.value)} /></Field>
+        <Field label={t.phone}><input value={b.phone} onChange={e => upd("phone", e.target.value)} /></Field>
+        <Field label={t.location}><input value={b.location} onChange={e => upd("location", e.target.value)} /></Field>
+        <Field label={t.summary} col="1 / -1" hint={t.summaryHint}>
+          <textarea value={b.summary} onChange={e => upd("summary", e.target.value)} rows={4} />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+// ─── STEP 1: SOCIAL ───────────────────────────────────────────────────────────
+function StepSocial({ profile, update, t }) {
+  const s = profile.social;
+  const upd = (k, v) => update("social", { ...s, [k]: v });
+  const updLink = (i, k, v) => update("social", { ...s, links: s.links.map((l, j) => j === i ? { ...l, [k]: v } : l) });
+
+  const SOCIALS = [
+    { key: "linkedin", icon: "in", label: t.linkedin, placeholder: "https://linkedin.com/in/yourname" },
+    { key: "github", icon: "⌥", label: t.github, placeholder: "https://github.com/yourname" },
+    { key: "portfolio", icon: "🌐", label: t.portfolio, placeholder: "https://yoursite.com" },
+    { key: "twitter", icon: "𝕏", label: t.twitter, placeholder: "https://twitter.com/yourname" },
+  ];
+
+  return (
+    <div className="section-card">
+      <h2 className="section-title">🔗 {t.steps[1]}</h2>
+      <div className="social-grid">
+        {SOCIALS.map(({ key, icon, label, placeholder }) => (
+          <Field key={key} label={label}>
+            <div className="social-field">
+              <span className="social-icon" style={{ fontWeight: 700, fontSize: 13, color: "var(--primary)" }}>{icon}</span>
+              <input value={s[key] || ""} onChange={e => upd(key, e.target.value)} placeholder={placeholder} />
+            </div>
+          </Field>
+        ))}
+      </div>
+
+      {s.links.length > 0 && <div style={{ marginTop: 20 }}>
+        <div className="section-title" style={{ fontSize: 14 }}>➕ {t.otherLink}</div>
+        {s.links.map((lk, i) => (
+          <div className="list-item" key={lk.id}>
+            <div className="list-item-header">
+              <span className="list-item-label">{lk.label || `Link ${i + 1}`}</span>
+              <button className="btn btn-danger btn-sm" onClick={() => update("social", { ...s, links: s.links.filter((_, j) => j !== i) })}>{t.remove}</button>
+            </div>
+            <div className="form-grid form-grid-2">
+              <Field label={t.linkLabel}><input value={lk.label} onChange={e => updLink(i, "label", e.target.value)} placeholder="e.g. Dribbble" /></Field>
+              <Field label={t.linkUrl}><input value={lk.url} onChange={e => updLink(i, "url", e.target.value)} placeholder="https://…" /></Field>
+            </div>
+          </div>
+        ))}
+      </div>}
+
+      <div style={{ marginTop: 16 }}>
+        <button className="btn btn-ghost" onClick={() => update("social", { ...s, links: [...s.links, newLink()] })}>{t.addLink}</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── STEP 2: EXPERIENCE ───────────────────────────────────────────────────────
+function StepExperience({ profile, update, t }) {
+  const items = profile.experience;
+  const upd = (i, k, v) => update("experience", items.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  return (
+    <div className="section-card">
+      <h2 className="section-title">💼 {t.steps[2]}</h2>
+      {items.map((exp, i) => (
+        <div className="list-item" key={exp.id}>
+          <div className="list-item-header">
+            <span className="list-item-label">{exp.role || `${t.steps[2]} ${i + 1}`}</span>
+            <button className="btn btn-danger btn-sm" onClick={() => update("experience", items.filter((_, j) => j !== i))}>{t.remove}</button>
+          </div>
+          <div className="form-grid form-grid-2">
+            <Field label={t.role}><input value={exp.role} onChange={e => upd(i, "role", e.target.value)} /></Field>
+            <Field label={t.company}><input value={exp.company} onChange={e => upd(i, "company", e.target.value)} /></Field>
+            <Field label={t.startDate}><input value={exp.start} onChange={e => upd(i, "start", e.target.value)} placeholder="2022-01" /></Field>
+            <Field label={t.endDate}><input value={exp.end} onChange={e => upd(i, "end", e.target.value)} placeholder="Present" /></Field>
+            <Field label={t.details} col="1 / -1" hint={t.detailsHint}><textarea value={exp.details} onChange={e => upd(i, "details", e.target.value)} rows={3} /></Field>
+          </div>
+        </div>
+      ))}
+      <button className="btn btn-ghost" onClick={() => update("experience", [...items, newExp()])}>{t.addExperience}</button>
+    </div>
+  );
+}
+
+// ─── STEP 3: EDUCATION ────────────────────────────────────────────────────────
+function StepEducation({ profile, update, t }) {
+  const items = profile.education;
+  const upd = (i, k, v) => update("education", items.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  return (
+    <div className="section-card">
+      <h2 className="section-title">🎓 {t.steps[3]}</h2>
+      {items.map((edu, i) => (
+        <div className="list-item" key={edu.id}>
+          <div className="list-item-header">
+            <span className="list-item-label">{edu.degree || `${t.steps[3]} ${i + 1}`}</span>
+            <button className="btn btn-danger btn-sm" onClick={() => update("education", items.filter((_, j) => j !== i))}>{t.remove}</button>
+          </div>
+          <div className="form-grid form-grid-3">
+            <Field label={t.degree}><input value={edu.degree} onChange={e => upd(i, "degree", e.target.value)} /></Field>
+            <Field label={t.school}><input value={edu.school} onChange={e => upd(i, "school", e.target.value)} /></Field>
+            <Field label={t.year}><input value={edu.year} onChange={e => upd(i, "year", e.target.value)} placeholder="2020–2024" /></Field>
+          </div>
+        </div>
+      ))}
+      <button className="btn btn-ghost" onClick={() => update("education", [...items, newEdu()])}>{t.addEducation}</button>
+    </div>
+  );
+}
+
+// ─── STEP 4: SKILLS ───────────────────────────────────────────────────────────
+function StepSkills({ profile, update, t }) {
+  const items = profile.skills;
+  const upd = (i, k, v) => update("skills", items.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  return (
+    <div className="section-card">
+      <h2 className="section-title">⚡ {t.steps[4]}</h2>
+      <div className="form-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))" }}>
+        {items.map((sk, i) => (
+          <div className="list-item" key={sk.id} style={{ marginBottom: 0 }}>
+            <div className="list-item-header" style={{ marginBottom: 10 }}>
+              <span className={`level-badge ${levelClass(sk.level)}`}>{sk.level}</span>
+              <button className="btn btn-danger btn-sm" onClick={() => update("skills", items.filter((_, j) => j !== i))}>{t.remove}</button>
+            </div>
+            <div className="form-grid form-grid-2">
+              <Field label={t.skillName}><input value={sk.name} onChange={e => upd(i, "name", e.target.value)} /></Field>
+              <Field label={t.level}><select value={sk.level} onChange={e => upd(i, "level", e.target.value)}>{t.levels.map(l => <option key={l}>{l}</option>)}</select></Field>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 12 }}><button className="btn btn-ghost" onClick={() => update("skills", [...items, newSkill()])}>{t.addSkill}</button></div>
+    </div>
+  );
+}
+
+// ─── STEP 5: LANGUAGES ────────────────────────────────────────────────────────
+function StepLanguages({ profile, update, t }) {
+  const items = profile.languages;
+  const upd = (i, k, v) => update("languages", items.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  return (
+    <div className="section-card">
+      <h2 className="section-title">🌐 {t.steps[5]}</h2>
+      <div className="form-grid" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(255px,1fr))" }}>
+        {items.map((lg, i) => (
+          <div className="list-item" key={lg.id} style={{ marginBottom: 0 }}>
+            <div className="list-item-header" style={{ marginBottom: 10 }}>
+              <span className={`level-badge ${levelClass(lg.level)}`}>{lg.level}</span>
+              <button className="btn btn-danger btn-sm" onClick={() => update("languages", items.filter((_, j) => j !== i))}>{t.remove}</button>
+            </div>
+            <div className="form-grid form-grid-2">
+              <Field label={t.langName}><input value={lg.name} onChange={e => upd(i, "name", e.target.value)} /></Field>
+              <Field label={t.level}><select value={lg.level} onChange={e => upd(i, "level", e.target.value)}>{t.langLevels.map(l => <option key={l}>{l}</option>)}</select></Field>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 12 }}><button className="btn btn-ghost" onClick={() => update("languages", [...items, newLang()])}>{t.addLanguage}</button></div>
+    </div>
+  );
+}
+
+// ─── STEP 6: PROJECTS ─────────────────────────────────────────────────────────
+function StepProjects({ profile, update, t }) {
+  const items = profile.projects;
+  const upd = (i, k, v) => update("projects", items.map((x, j) => j === i ? { ...x, [k]: v } : x));
+  return (
+    <div className="section-card">
+      <h2 className="section-title">🚀 {t.steps[6]}</h2>
+      {items.map((pr, i) => (
+        <div className="list-item" key={pr.id}>
+          <div className="list-item-header">
+            <span className="list-item-label">{pr.name || `${t.steps[6]} ${i + 1}`}</span>
+            <button className="btn btn-danger btn-sm" onClick={() => update("projects", items.filter((_, j) => j !== i))}>{t.remove}</button>
+          </div>
+          <div className="form-grid">
+            <div className="form-grid form-grid-2">
+              <Field label={t.projectName}><input value={pr.name} onChange={e => upd(i, "name", e.target.value)} /></Field>
+              <Field label={t.link}><input value={pr.link} onChange={e => upd(i, "link", e.target.value)} placeholder="https://…" /></Field>
+            </div>
+            <Field label={t.description} hint={t.projectHint}><textarea value={pr.description} onChange={e => upd(i, "description", e.target.value)} rows={3} /></Field>
+          </div>
+        </div>
+      ))}
+      <button className="btn btn-ghost" onClick={() => update("projects", [...items, newProject()])}>{t.addProject}</button>
+    </div>
+  );
+}
+
+// ─── STEP 7: TEMPLATE ─────────────────────────────────────────────────────────
+const TPL_CONFIG = {
+  classic: { headerBg: "linear-gradient(135deg,#1A56DB,#0EA5E9)", sideBg: "#F0F6FF", sideAccent: "#DBEAFE" },
+  modern:  { headerBg: "#0D1B3E", sideBg: "#F8FAFF", sideAccent: "#3B82F6" },
+  minimal: { headerBg: "#FFF", sideBg: "#F5F8FF", sideAccent: "#1A56DB", textDark: true },
+  executive:{ headerBg: "#0A0F1E", sideBg: "#F5F8FF", sideAccent: "#DBEAFE", strip: true },
+  creative: { headerBg: "#FFF", sideBg: "#EEF4FF", sideAccent: "#1A56DB", textDark: true, topStrip: true },
+};
+
+function TemplateThumbnail({ id }) {
+  const c = TPL_CONFIG[id];
+  return (
+    <div className="template-thumb">
+      {c.topStrip && <div style={{ height: 6, background: "linear-gradient(90deg,#1A56DB,#0EA5E9,#06B6D4)", flexShrink: 0 }} />}
+      {c.strip && <div style={{ height: 4, background: "linear-gradient(90deg,#1A56DB,#0EA5E9,#7C3AED)", flexShrink: 0 }} />}
+      <div className="tpl-bar" style={{ background: c.headerBg, borderBottom: c.textDark ? "2px solid #1A56DB" : "none" }}>
+        <div className="tpl-avatar" style={{ background: c.textDark ? "#DBEAFE" : "rgba(255,255,255,0.3)" }} />
+        <div>
+          <div className="tpl-name-line" style={{ background: c.textDark ? "#0D1B3E" : undefined }} />
+          <div className="tpl-sub-line" style={{ marginTop: 3, background: c.textDark ? "#1A56DB" : undefined }} />
+        </div>
+      </div>
+      <div className="tpl-body" style={{ background: "#FFF", flex: 1 }}>
+        <div className="tpl-col">
+          {[70, 55, 80, 45, 65].map((w, i) => <div key={i} className="tpl-line" style={{ width: `${w}%` }} />)}
+        </div>
+        <div className="tpl-col" style={{ maxWidth: 52, background: c.sideBg, borderLeft: `2px solid ${c.sideAccent}`, paddingLeft: 4 }}>
+          {[60, 80, 50, 70].map((w, i) => <div key={i} className="tpl-line" style={{ width: `${w}%` }} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepTemplate({ template, setTemplate, t }) {
+  const keys = ["classic", "modern", "minimal", "executive", "creative"];
+  return (
+    <div className="section-card">
+      <h2 className="section-title">🎨 {t.steps[7]}</h2>
+      <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20 }}>{t.templateHint}</p>
+      <div className="template-grid">
+        {keys.map(key => (
+          <div
+            key={key}
+            className={`template-card${template === key ? " selected" : ""}`}
+            onClick={() => setTemplate(key)}
+            role="radio" aria-checked={template === key}
+            tabIndex={0} onKeyDown={e => e.key === "Enter" && setTemplate(key)}
+          >
+            <div style={{ position: "relative" }}>
+              <TemplateThumbnail id={key} />
+              {template === key && <div className="template-selected-badge">✓ Selected</div>}
+            </div>
+            <div className="template-label">
+              <div className="template-name">{t.templates[key].name}</div>
+              <div className="template-desc">{t.templates[key].desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── RESUME CONTENT HELPERS ───────────────────────────────────────────────────
+function ResumeMain({ profile, t }) {
+  const { experience, projects, basics } = profile;
+  return (
+    <>
+      {basics.summary && (
+        <div className="r-section">
+          <div className="r-section-title">Profile</div>
+          <div className="r-summary">{basics.summary}</div>
+        </div>
+      )}
+      {experience.length > 0 && (
+        <div className="r-section">
+          <div className="r-section-title">{t.experience}</div>
+          {experience.map(exp => (
+            <div className="r-exp-item" key={exp.id}>
+              <div className="r-exp-role">{exp.role}</div>
+              <div className="r-exp-co">{exp.company}{(exp.start || exp.end) ? ` · ${exp.start}${exp.end ? ` – ${exp.end}` : ""}` : ""}</div>
+              {exp.details && <div className="r-exp-detail">{exp.details}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {projects.length > 0 && (
+        <div className="r-section">
+          <div className="r-section-title">{t.projects}</div>
+          {projects.map(pr => (
+            <div className="r-project-item" key={pr.id}>
+              <div className="r-project-name">{pr.name}</div>
+              {pr.description && <div className="r-project-desc">{pr.description}</div>}
+              {pr.link && <div className="r-project-link"><a href={pr.link} target="_blank" rel="noreferrer">{pr.link}</a></div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ResumeSide({ profile, t }) {
+  const { education, skills, languages, social } = profile;
+  const socialItems = [
+    social.linkedin && { icon: "in", url: social.linkedin },
+    social.github && { icon: "⌥", url: social.github },
+    social.portfolio && { icon: "🌐", url: social.portfolio },
+    social.twitter && { icon: "𝕏", url: social.twitter },
+    ...(social.links || []).filter(l => l.url).map(l => ({ icon: "🔗", label: l.label, url: l.url })),
+  ].filter(Boolean);
+
+  return (
+    <>
+      {socialItems.length > 0 && (
+        <div className="r-section">
+          <div className="r-section-title">{t.contact}</div>
+          {socialItems.map((s, i) => (
+            <div className="r-social-row" key={i}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#1A56DB" }}>{s.icon}</span>
+              <a href={s.url} target="_blank" rel="noreferrer">{s.url.replace(/^https?:\/\//, "")}</a>
+            </div>
+          ))}
+        </div>
+      )}
+      {education.length > 0 && (
+        <div className="r-section">
+          <div className="r-section-title">{t.education}</div>
+          {education.map(edu => (
+            <div className="r-edu-item" key={edu.id}>
+              <div className="r-edu-degree">{edu.degree}</div>
+              <div className="r-edu-school">{edu.school}{edu.year ? ` · ${edu.year}` : ""}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {skills.length > 0 && (
+        <div className="r-section">
+          <div className="r-section-title">{t.skills}</div>
+          {skills.map(sk => (
+            <div key={sk.id}>
+              <div className="r-skill-row"><span>{sk.name}</span><span style={{ fontSize: 10, color: "#5A6A8A" }}>{sk.level}</span></div>
+              <div className="r-skill-bar"><div className="r-skill-fill" style={{ width: `${levelPct[sk.level] || 50}%` }} /></div>
+            </div>
+          ))}
+        </div>
+      )}
+      {languages.length > 0 && (
+        <div className="r-section">
+          <div className="r-section-title">{t.languages}</div>
+          {languages.map(lg => (
+            <div className="r-lang-row" key={lg.id}><span>{lg.name}</span><span style={{ fontSize: 11, color: "#5A6A8A" }}>{lg.level}</span></div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function ResumePreview({ profile, t, template }) {
+  const { basics } = profile;
+  const tpl = template || "classic";
+  const Photo = ({ cls, phCls }) => basics.photo
+    ? <img src={basics.photo} alt={basics.fullName} className={cls} />
+    : <div className={phCls}>👤</div>;
+
+  return (
+    <div className={`resume-preview tpl-${tpl}`}>
+      {(tpl === "executive" || tpl === "creative") && <div className="r-accent-strip" />}
+      <div className="r-header">
+        <Photo cls="r-photo" phCls="r-photo-ph" />
+        <div style={{ flex: 1 }}>
+          <div className="r-name">{basics.fullName || "Your Name"}</div>
+          {basics.title && <div className="r-title-txt">{basics.title}</div>}
+          <div className="r-meta">
+            {basics.email && <span>✉ {basics.email}</span>}
+            {basics.phone && <span>📞 {basics.phone}</span>}
+            {basics.location && <span>📍 {basics.location}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="r-body">
+        <div className="r-main"><ResumeMain profile={profile} t={t} /></div>
+        <div className="r-side"><ResumeSide profile={profile} t={t} /></div>
+      </div>
+    </div>
+  );
+}
+
+// ─── STEP 8: REVIEW ───────────────────────────────────────────────────────────
+function StepReview({ profile, t, template, showToast, importRef }) {
+  const isReady = profile.basics.fullName && profile.basics.email;
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify({ profile, template }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `plux-portfolio-${Date.now()}.json`; a.click();
+    URL.revokeObjectURL(url);
+    showToast("⬇ JSON downloaded!");
+  };
+  return (
+    <>
+      <div className={`status-banner ${isReady ? "status-ok" : "status-warn"}`}>
+        {isReady ? "✅" : "⚠️"} {isReady ? t.readyOK : t.readyCheck}
+      </div>
+      <div className="review-toolbar">
+        <button className="btn btn-primary" onClick={() => window.print()}>🖨 {t.exportPDF}</button>
+        <button className="btn btn-accent" onClick={exportJSON}>⬇ {t.exportJSON}</button>
+        <button className="btn btn-ghost" onClick={() => importRef.current?.click()}>⬆ {t.importJSON}</button>
+        <span className="print-note">💡 {t.printNote}</span>
+      </div>
+      <div className="section-card review-card" style={{ padding: 0, background: "transparent", border: "none", boxShadow: "none" }}>
+        <ResumePreview profile={profile} t={t} template={template} />
+      </div>
+      <div className="privacy-note">🔒 {t.privacyNote}</div>
+    </>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
+export default function App() {
+  const [profile, setProfile] = useState(defaultProfile);
+  const [step, setStep] = useState(0);
+  const [theme, setTheme] = useState("dark");
+  const [lang, setLang] = useState("en");
+  const [template, setTemplate] = useState("classic");
+  const [toast, setToast] = useState(null);
+  const importRef = useRef(null);
+  const debounceRef = useRef(null);
+  const t = TRANSLATIONS[lang];
+
+  useEffect(() => {
+    const vars = THEME_VARS[theme];
+    const root = document.getElementById("plux-root") || document.documentElement;
+    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    try { localStorage.setItem("plux_theme", theme); } catch {}
+  }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("dir", lang === "ar" ? "rtl" : "ltr");
+    try { localStorage.setItem("plux_lang", lang); } catch {}
+  }, [lang]);
+
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      try { localStorage.setItem("plux_draft", JSON.stringify({ profile, template })); } catch {}
+    }, 400);
+    return () => clearTimeout(debounceRef.current);
+  }, [profile, template]);
+
+  useEffect(() => {
+    try {
+      const th = localStorage.getItem("plux_theme");
+      const lg = localStorage.getItem("plux_lang");
+      if (th && THEME_VARS[th]) setTheme(th);
+      if (lg && TRANSLATIONS[lg]) setLang(lg);
+      const raw = localStorage.getItem("plux_draft");
+      if (raw) {
+        const saved = JSON.parse(raw);
+        const prof = saved.profile || saved;
+        if (prof.basics) setProfile(prof);
+        if (saved.template) setTemplate(saved.template);
+      }
+    } catch {}
+  }, []);
+
+  const showToast = useCallback((msg) => setToast(msg), []);
+  const updateSection = (key, val) => setProfile(p => ({ ...p, [key]: val }));
+
+  const saveDraft = () => {
+    try { localStorage.setItem("plux_saved", JSON.stringify({ profile, template })); showToast(t.draftSaved); } catch {}
+  };
+  const loadDraft = () => {
+    try {
+      const d = localStorage.getItem("plux_saved");
+      if (d) {
+        const saved = JSON.parse(d);
+        const prof = saved.profile || saved;
+        if (prof.basics) setProfile(prof);
+        if (saved.template) setTemplate(saved.template);
+        showToast(t.draftLoaded);
+      }
+    } catch {}
+  };
+  const clearAll = () => {
+    if (!window.confirm(t.confirmClear)) return;
+    setProfile(defaultProfile()); setStep(0); setTemplate("classic");
+    try { localStorage.removeItem("plux_draft"); localStorage.removeItem("plux_saved"); } catch {}
+    showToast(t.cleared);
+  };
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        const prof = data.profile || data;
+        if (!prof.basics) throw new Error();
+        if (!window.confirm(t.confirmImport)) return;
+        setProfile(prof);
+        if (data.template) setTemplate(data.template);
+        setStep(0); showToast(t.imported);
+      } catch { showToast(t.invalidJSON); }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const STEPS = [
+    <StepBasics profile={profile} update={updateSection} t={t} />,
+    <StepSocial profile={profile} update={updateSection} t={t} />,
+    <StepExperience profile={profile} update={updateSection} t={t} />,
+    <StepEducation profile={profile} update={updateSection} t={t} />,
+    <StepSkills profile={profile} update={updateSection} t={t} />,
+    <StepLanguages profile={profile} update={updateSection} t={t} />,
+    <StepProjects profile={profile} update={updateSection} t={t} />,
+    <StepTemplate template={template} setTemplate={setTemplate} t={t} />,
+    <StepReview profile={profile} t={t} template={template} showToast={showToast} importRef={importRef} />,
+  ];
+
+  const isStepDone = (i) => {
+    if (i === 0) return !!(profile.basics.fullName && profile.basics.email);
+    if (i === 1) return !!(profile.social?.linkedin || profile.social?.github || profile.social?.portfolio || profile.social?.links?.length);
+    if (i === 2) return profile.experience.length > 0;
+    if (i === 3) return profile.education.length > 0;
+    if (i === 4) return profile.skills.length > 0;
+    if (i === 5) return profile.languages.length > 0;
+    if (i === 6) return profile.projects.length > 0;
+    if (i === 7) return !!template;
+    return false;
+  };
+
+  return (
+    <>
+      <style>{css}</style>
+      <div id="plux-root">
+        <div className="app-wrapper">
+          <header className="app-header">
+            <div className="app-header-brand">
+              <div className="brand-icon">✦</div>
+              <div>
+                <div className="app-header-title">{t.appTitle}</div>
+                <div className="app-header-subtitle">{t.appSubtitle}</div>
+              </div>
+            </div>
+            <div className="header-controls">
+              <div className="selector-group">
+                {["light","dark","hc"].map(th => (
+                  <button key={th} className={`sel-btn${theme===th?" active":""}`} onClick={()=>setTheme(th)}>
+                    {th==="light"?"☀":th==="dark"?"🌙":"◑"}
+                  </button>
+                ))}
+              </div>
+              <div className="selector-group">
+                {["en","fr","ar"].map(l => (
+                  <button key={l} className={`sel-btn${lang===l?" active":""}`} onClick={()=>setLang(l)}>{l.toUpperCase()}</button>
+                ))}
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={saveDraft}>{t.saveDraft}</button>
+              <button className="btn btn-secondary btn-sm" onClick={loadDraft}>{t.loadDraft}</button>
+              <button className="btn btn-ghost btn-sm" onClick={clearAll}>{t.clearAll}</button>
+            </div>
+          </header>
+
+          <nav className="stepper-wrap">
+            <div className="stepper">
+              {t.steps.map((s, i) => (
+                <button
+                  key={i} aria-current={step===i?"step":undefined}
+                  className={`step-btn ${step===i?"active":isStepDone(i)?"done":"inactive"}`}
+                  onClick={()=>setStep(i)}
+                >
+                  {isStepDone(i)&&step!==i?"✓ ":""}{s}
+                </button>
+              ))}
+            </div>
+          </nav>
+
+          <div key={step}>{STEPS[step]}</div>
+
+          <div className="step-nav">
+            {step > 0
+              ? <button className="btn btn-secondary" onClick={()=>setStep(s=>s-1)}>{t.back}</button>
+              : <div />
+            }
+            {step < t.steps.length - 1 &&
+              <button className="btn btn-primary" onClick={()=>setStep(s=>s+1)}>{t.next}</button>
+            }
+          </div>
+        </div>
+
+        <input ref={importRef} type="file" accept=".json" style={{display:"none"}} onChange={handleImport} />
+        {toast && <Toast msg={toast} onDone={()=>setToast(null)} />}
+      </div>
+    </>
+  );
+}
